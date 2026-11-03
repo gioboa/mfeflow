@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { BUNDLERS, type Bundler } from '@mfeflow/contracts';
 import {
   hasErrno,
   inOrder,
@@ -81,6 +82,11 @@ export const INIT_ARGS = {
     description: 'pnpm (the only one in this release)',
     valueHint: 'pm',
   },
+  bundler: {
+    type: 'string',
+    description: 'What builds the apps: rsbuild (default) or vite',
+    valueHint: 'name',
+  },
   topology: {
     type: 'string',
     description:
@@ -109,6 +115,7 @@ export type Topology = 'monorepo' | 'polyrepo';
 
 export interface InitOptions {
   topology: Topology;
+  bundler: Bundler;
   org?: string;
   dir: string;
   scope: string;
@@ -171,6 +178,13 @@ function topologyOf(value: string | undefined): Topology {
   );
 }
 
+function bundlerOf(value: string | undefined): Bundler | undefined {
+  if (value === undefined) return undefined;
+  const known = BUNDLERS.find((b) => b === value);
+  if (known !== undefined) return known;
+  throw new MfeflowError('E107', `--bundler ${value}: use ${BUNDLERS.join(' or ')}`);
+}
+
 /** Flags win over the preset, the preset over prompts, prompts over defaults. */
 export async function resolveInitOptions(
   rt: Runtime,
@@ -181,6 +195,8 @@ export async function resolveInitOptions(
 ): Promise<InitOptions> {
   only('package-manager', text(args, 'package-manager') ?? preset.packageManager, 'pnpm');
   const topology = topologyOf(text(args, 'topology') ?? preset.topology);
+  // No prompt: Rsbuild stays the default, so scripted inits that answer every question keep working.
+  const bundler = bundlerOf(text(args, 'bundler') ?? preset.bundler) ?? 'rsbuild';
   const { canPrompt } = globals;
   const { prompter } = rt;
 
@@ -242,6 +258,7 @@ export async function resolveInitOptions(
   }
   return {
     topology,
+    bundler,
     ...(org === undefined ? {} : { org }),
     dir,
     scope,
@@ -289,6 +306,8 @@ export function skeleton(options: InitOptions): MfeflowProject {
     version: 1,
     topology: 'monorepo',
     packageManager: 'pnpm',
+    // Rsbuild is the default, so its projects keep the shape they had before there was a choice.
+    ...(options.bundler === 'rsbuild' ? {} : { bundler: options.bundler }),
     scope: options.scope,
     apps,
     features: {},
@@ -397,6 +416,7 @@ async function runPolyrepoInit(
   }
   const base = {
     scope: options.scope,
+    bundler: options.bundler,
     ...(options.org === undefined ? {} : { org: options.org }),
     features: options.features,
     featureOptions: options.featureOptions,
@@ -414,6 +434,7 @@ async function runPolyrepoInit(
     },
     ...remotes.map((remote): RepoRequest => ({
       scope: base.scope,
+      bundler: base.bundler,
       org: options.org,
       features: base.features,
       featureOptions: base.featureOptions,

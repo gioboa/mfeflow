@@ -2,6 +2,15 @@ import { Checker, isObj, isSafeRelativePath, isUrl, type Issue } from './validat
 import { MFE_NAME } from './mfe-manifest';
 import { isRegistryProtocol, registryTemplateProblem } from './feature-registry';
 
+/** The bundlers an mfeflow project can build with. */
+export const BUNDLERS = ['rsbuild', 'vite'] as const;
+export type Bundler = (typeof BUNDLERS)[number];
+
+/** The bundler of a project: its `bundler`, or `rsbuild` for projects made before there was a choice. */
+export function bundlerOf(project: Pick<MfeflowProject, 'bundler'>): Bundler {
+  return project.bundler ?? 'rsbuild';
+}
+
 /** `mfeflow.json`: the CLI's record of a project. */
 export interface MfeflowProject {
   $schema?: string;
@@ -12,6 +21,8 @@ export interface MfeflowProject {
   repo?: 'platform' | 'shell' | 'remote';
   topology: 'monorepo' | 'polyrepo' | 'hybrid';
   packageManager: 'pnpm' | 'npm';
+  /** What builds every app: `rsbuild` or `vite`. Absent means `rsbuild`. */
+  bundler?: Bundler;
   /** npm scope for the project's own packages, e.g. `@shopco`. */
   scope: string;
   apps: Record<string, { kind: 'shell' | 'remote'; path: string; port?: number }>;
@@ -127,6 +138,11 @@ export function validateMfeflowProject(value: unknown): Issue[] {
   const pm = c.string(value, 'packageManager', '');
   if (pm !== undefined && !['pnpm', 'npm'].includes(pm))
     c.add('packageManager', 'must be pnpm or npm');
+  if ('bundler' in value) {
+    const bundler = c.string(value, 'bundler', '', { required: false });
+    if (bundler !== undefined && !BUNDLERS.some((b) => b === bundler))
+      c.add('bundler', 'must be rsbuild or vite');
+  }
   c.string(value, 'scope', '', { pattern: SCOPE, hint: 'must be an npm scope like "@shopco"' });
   const apps = c.object(value, 'apps', '');
   let shells = 0;

@@ -48,13 +48,16 @@ export {
   type FeatureRegistryItem,
 } from './feature-registry';
 export {
+  BUNDLERS,
   ENV_KEY_NAME,
   FILE_HASH,
   PROJECT_REPOS,
   REGISTRY_HOST,
   REGISTRY_NAMESPACE,
+  bundlerOf,
   isMfeflowProject,
   validateMfeflowProject,
+  type Bundler,
   type MfeflowProject,
   type ProjectBudget,
   type ProjectRegistry,
@@ -72,6 +75,8 @@ export {
 export {
   FEATURE_CONDITION,
   FEATURE_NAME,
+  PROJECT_CONDITION,
+  PROJECT_CONDITIONS,
   isFeatureManifest,
   TRANSFORM_OPS,
   validateFeatureManifest,

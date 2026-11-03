@@ -1,6 +1,8 @@
 import {
+  bundlerOf,
   FEATURE_CONDITION,
   isSafeRelativePath,
+  PROJECT_CONDITION,
   type FeatureCondition,
   type FeatureFile,
   type FeatureManifest,
@@ -99,18 +101,22 @@ export function resolveOptions(
 
 /**
  * True when the part has no condition, or every entry holds: an option has the value it asks for,
- * or a `feature:<name>` is installed (or being added in this command) as asked.
+ * a `feature:<name>` is installed (or being added in this command) as asked, or a
+ * `project:<setting>` (the project's settings, e.g. `bundler`) has the value asked.
  */
 function applies(
   part: { when?: FeatureCondition },
   options: Record<string, unknown>,
   present: ReadonlySet<string>,
+  settings: Readonly<Record<string, string>>,
 ): boolean {
-  return Object.entries(part.when ?? {}).every(([name, value]) =>
-    name.startsWith(FEATURE_CONDITION)
-      ? present.has(name.slice(FEATURE_CONDITION.length)) === value
-      : options[name] === value,
-  );
+  return Object.entries(part.when ?? {}).every(([name, value]) => {
+    if (name.startsWith(FEATURE_CONDITION))
+      return present.has(name.slice(FEATURE_CONDITION.length)) === value;
+    if (name.startsWith(PROJECT_CONDITION))
+      return settings[name.slice(PROJECT_CONDITION.length)] === value;
+    return options[name] === value;
+  });
 }
 
 /** Fills in `{{scope}}`, `{{app.name}}` and the other template values; text without any is returned as it is. */
@@ -168,8 +174,10 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     path: app.path,
     port: app.port,
   }));
+  const settings = { bundler: bundlerOf(project) };
   const dataFor = (place: Place): TemplateData => ({
     scope: project.scope,
+    bundler: settings.bundler,
     apps,
     topology: project.topology,
     packageManager: project.packageManager,
@@ -186,7 +194,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
 
   const steps: (() => Promise<void>)[] = [];
 
-  for (const file of (manifest.files ?? []).filter((f) => applies(f, options, present))) {
+  for (const file of (manifest.files ?? []).filter((f) => applies(f, options, present, settings))) {
     if (file.atRoot && !trusted) {
       throw new MfeflowError(
         'E203',
@@ -202,7 +210,9 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options, present))) {
+  for (const dep of (manifest.dependencies ?? []).filter((d) =>
+    applies(d, options, present, settings),
+  )) {
     for (const place of placesFor(dep.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted && dep.name.includes('{{')) {
@@ -213,7 +223,9 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options, present))) {
+  for (const script of (manifest.scripts ?? []).filter((x) =>
+    applies(x, options, present, settings),
+  )) {
     for (const place of placesFor(script.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted) assertPlainScript(script.name, manifest.name);
@@ -221,7 +233,9 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const declared of (manifest.transforms ?? []).filter((t) => applies(t, options, present))) {
+  for (const declared of (manifest.transforms ?? []).filter((t) =>
+    applies(t, options, present, settings),
+  )) {
     if (!trusted) assertThirdPartyTransform(declared, manifest.name);
     const transform =
       !trusted && declared.op === 'add-env-key'

@@ -75,7 +75,7 @@ No. This release supports pnpm only. The generated project depends on pnpm works
 
 ## Can I use Next.js?
 
-No. mfeflow builds client-rendered React apps with Rsbuild. Next.js is not supported.
+No. mfeflow builds client-rendered React apps with Rsbuild or Vite. Next.js is not supported.
 
 ## Does it support server-side rendering?
 
@@ -83,7 +83,7 @@ Not yet. The shell and remotes render in the browser. A server or CDN edge can i
 
 ## Can I use Vite?
 
-No. The presets are for Rsbuild and its Module Federation plugin. Vite is not supported.
+Yes. `mfeflow init --bundler vite` builds every app with Vite and `@module-federation/vite` instead of Rsbuild, and `mfeflow upgrade --bundler vite` moves an existing project. One project uses one bundler. See [Vite](/guide/vite).
 
 ## Can I use separate repositories for each remote?
 
