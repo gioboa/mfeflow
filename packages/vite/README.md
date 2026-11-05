@@ -30,6 +30,8 @@ import { createShellConfig } from '@mfeflow/vite';
 export default createShellConfig({ name: 'storefront', port: 4300 });
 ```
 
+Two `@mfeflow/rsbuild` options do not apply here. `consumesRemotes` is accepted and has no effect, because `@module-federation/vite` has no switch to strip remote support from a remote's entry. `esmRuntime` is not an option at all, because the Vite plugin already uses the ESM Module Federation runtime.
+
 Each app needs an `index.html` at its root that loads `/src/index.ts`. Merge extra settings with `mergeConfig` from `vite`. `pluginRestartOn(path)` restarts the dev server when a file changes (the shell uses it for the dev registry), and `registerHeadScript` puts an inline script first in the shell's `<head>`.
 
 `PUBLIC_*` and `VITE_*` variables reach the browser through `import.meta.env`.

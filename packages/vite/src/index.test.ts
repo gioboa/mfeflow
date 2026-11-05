@@ -59,6 +59,16 @@ function callHook(hook: unknown, ...args: unknown[]): unknown {
 
 afterEach(resetHeadScriptsForTests);
 
+/** This package's own version: the shell config in these tests runs from this package's folder. */
+function ownVersion(): string {
+  const pkg: unknown = JSON.parse(
+    fs.readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf8'),
+  );
+  const version: unknown = Reflect.get(Object(pkg), 'version');
+  if (typeof version !== 'string') throw new Error('package.json has no version');
+  return version;
+}
+
 describe('federation options', () => {
   it('gives a remote the same entry file name as the Rsbuild preset', () => {
     const o = remoteFederationOptions(
@@ -118,7 +128,7 @@ describe('createShellConfig', () => {
     expect(prod).toMatchObject({ define: { __MFEFLOW_SNAPSHOT__: 'false' } });
     expect(
       Reflect.get(Object(Reflect.get(Object(prod), 'define')), '__MFEFLOW_APP_VERSION__'),
-    ).toBe(JSON.stringify('0.7.0'));
+    ).toBe(JSON.stringify(ownVersion()));
   });
 
   it('checks the async boundary with eager: false', () => {

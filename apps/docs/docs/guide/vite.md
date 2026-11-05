@@ -47,7 +47,7 @@ export default createRemoteConfig({
 });
 ```
 
-`@mfeflow/vite` takes the same options as `@mfeflow/rsbuild`, and both share their settings through `@mfeflow/bundler-shared`. So a Vite app shares the same singletons, writes the same `mf-manifest.json` and loads the same runtime plugins.
+`@mfeflow/vite` takes the same options as `@mfeflow/rsbuild`, except `esmRuntime` (Vite already uses the ESM runtime) and `consumesRemotes` (accepted, no effect), and both share their settings through `@mfeflow/bundler-shared`. So a Vite app shares the same singletons, writes the same `mf-manifest.json` and loads the same runtime plugins.
 
 | Rsbuild                             | Vite                                               |
 | ----------------------------------- | -------------------------------------------------- |

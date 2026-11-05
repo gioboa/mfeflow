@@ -97,7 +97,11 @@ function remoteServer(port: number | undefined): NonNullable<UserConfig['server'
     : { ...listen(port), origin: `http://localhost:${String(port)}` };
 }
 
-/** Vite config for a remote. `vite.config.ts`: `export default createRemoteConfig({ name, exposes })`. */
+/**
+ * Vite config for a remote. `vite.config.ts`: `export default createRemoteConfig({ name, exposes })`.
+ * `consumesRemotes` has no effect: `@module-federation/vite` has no switch to strip remote support
+ * from a remote's entry.
+ */
 export function createRemoteConfig(o: RemoteOptions): UserConfig {
   const cwd = o.cwd ?? process.cwd();
   return {

@@ -70,4 +70,3 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - i18next@26.5.12
-  - '@module-federation/vite@1.23.8'
