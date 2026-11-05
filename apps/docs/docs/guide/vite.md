@@ -49,16 +49,16 @@ export default createRemoteConfig({
 
 `@mfeflow/vite` takes the same options as `@mfeflow/rsbuild`, except `esmRuntime` (Vite already uses the ESM runtime) and `consumesRemotes` (accepted, no effect), and both share their settings through `@mfeflow/bundler-shared`. So a Vite app shares the same singletons, writes the same `mf-manifest.json` and loads the same runtime plugins.
 
-| Rsbuild                             | Vite                                               |
-| ----------------------------------- | -------------------------------------------------- |
-| `rsbuild.config.ts`                 | `vite.config.ts` and `index.html`                  |
-| `@mfeflow/rsbuild`, `@rsbuild/core` | `@mfeflow/vite`, `vite`                            |
-| `rsbuild dev`, `rsbuild build`      | `vite`, `vite build`                               |
-| `html.tags`, `registerHeadScript`   | `registerHeadScript` from `@mfeflow/vite`          |
-| `dev.watchFiles` restart            | `pluginRestartOn(path)`                            |
-| `PUBLIC_*` in the browser           | `PUBLIC_*` and `VITE_*`, through `import.meta.env` |
-| hashed files under `/static/`       | hashed files under `/assets/`                      |
-| `storybook-react-rsbuild`           | `@storybook/react-vite`                            |
+| Rsbuild                             | Vite                                       |
+| ----------------------------------- | ------------------------------------------ |
+| `rsbuild.config.ts`                 | `vite.config.ts` and `index.html`          |
+| `@mfeflow/rsbuild`, `@rsbuild/core` | `@mfeflow/vite`, `vite`                    |
+| `rsbuild dev`, `rsbuild build`      | `vite`, `vite build`                       |
+| `html.tags`, `registerHeadScript`   | `registerHeadScript` from `@mfeflow/vite`  |
+| `dev.watchFiles` restart            | `pluginRestartOn(path)`                    |
+| `PUBLIC_*` in the browser           | `PUBLIC_*` only, through `import.meta.env` |
+| hashed files under `/static/`       | hashed files under `/assets/`              |
+| `storybook-react-rsbuild`           | `@storybook/react-vite`                    |
 
 The features write the right files for the bundler: `theming` registers its head script with `@mfeflow/vite`, `env-t3` imports `./env` from `vite.config.ts`, `storybook` uses `@storybook/react-vite`, and `deploy-docker` and `deploy-cloudflare` cache `/assets/` for a year.
 

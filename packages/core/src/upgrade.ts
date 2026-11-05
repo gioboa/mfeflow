@@ -704,13 +704,13 @@ async function runMigrations(
   return ran;
 }
 
-/** Tracked files that are still on disk but that the new version no longer generates. */
 /** The project on `bundler`: Rsbuild, the default, is written by leaving the field out. */
 function withBundler(project: MfeflowProject, bundler: Bundler): MfeflowProject {
   const { bundler: _old, ...rest } = project;
   return bundler === 'rsbuild' ? rest : { ...rest, bundler };
 }
 
+/** Tracked files that are still on disk but that the new version no longer generates. */
 async function findRemoved(
   project: MfeflowProject,
   fresh: Replay,
@@ -725,6 +725,17 @@ async function findRemoved(
   return removed;
 }
 
+/** The package.json among `packageFiles` that owns `file`: the one in the deepest folder above it. */
+function owningPackage(file: string, packageFiles: readonly string[]): string | undefined {
+  let best: string | undefined;
+  for (const pkg of packageFiles) {
+    const dir = pkg === 'package.json' ? '' : pkg.slice(0, -'/package.json'.length);
+    if (dir !== '' && !file.startsWith(`${dir}/`)) continue;
+    if (best === undefined || pkg.length > best.length) best = pkg;
+  }
+  return best;
+}
+
 /** `scripts` of a generated package.json, by name. */
 function scriptsOf(source: string | undefined, file: string): Record<string, unknown> {
   return source === undefined ? {} : asRecord(parseJsonObject(file, source).scripts);
@@ -733,7 +744,8 @@ function scriptsOf(source: string | undefined, file: string): Record<string, unk
 /**
  * The part of a bundler switch the replay alone does not do: what only the old bundler generated
  * goes. A file goes when it still has the content mfeflow recorded; a dependency goes when the new
- * replay no longer lists it; a script moves to the new command when it is still the old one.
+ * replay no longer lists it, unless the app kept a changed old-bundler file; a script moves to the
+ * new command when it is still the old one.
  */
 async function leaveOldBundler(
   project: MfeflowProject,
@@ -743,6 +755,10 @@ async function leaveOldBundler(
   builder: PlanBuilder,
 ): Promise<void> {
   const recorded = project.files ?? {};
+  const packageFiles = [...old.files.keys()].filter(isPackageFile);
+  // A changed file stays, and its app keeps the old bundler's packages (the config's own imports and
+  // their peers, such as @rsbuild/core for @mfeflow/rsbuild), so it keeps working until it is ported.
+  const keepsOld = new Set<string>();
   for (const file of [...old.files.keys()].toSorted(byCodePoint)) {
     if (fresh.files.has(file) || isStructured(file)) continue;
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
@@ -752,16 +768,23 @@ async function leaveOldBundler(
       // oxlint-disable-next-line no-await-in-loop -- ordered edits keep the plan deterministic
       await builder.delete(file);
     } else {
-      builder.warn(`${file} is for the old bundler and you changed it; port it and delete it`);
+      const owner = owningPackage(file, packageFiles);
+      if (owner !== undefined) keepsOld.add(owner);
+      builder.warn(
+        `${file} is for the old bundler and you changed it; port it and delete it` +
+          (owner === undefined ? '' : `, then remove the old bundler's packages from ${owner}`),
+      );
     }
   }
-  for (const file of [...old.files.keys()].filter(isPackageFile).toSorted(byCodePoint)) {
+  for (const file of packageFiles.toSorted(byCodePoint)) {
     const before = old.files.get(file);
     const after = fresh.files.get(file);
     if (before === undefined || after === undefined) continue;
     const wanted = declared(parseJsonObject(file, after));
     const gone = new Set(
-      [...declared(parseJsonObject(file, before)).keys()].filter((n) => !wanted.has(n)),
+      keepsOld.has(file)
+        ? []
+        : [...declared(parseJsonObject(file, before)).keys()].filter((n) => !wanted.has(n)),
     );
     const oldScripts = scriptsOf(before, file);
     const newScripts = scriptsOf(after, file);

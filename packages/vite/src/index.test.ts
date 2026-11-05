@@ -27,6 +27,7 @@ import {
   remoteFederationOptions,
   REMOTE_ENTRY,
   shellFederationOptions,
+  toImportPath,
 } from '.';
 import { headScriptTags } from './head-scripts';
 import { isUnder } from './restart';
@@ -84,6 +85,21 @@ describe('federation options', () => {
     });
   });
 
+  it('writes Windows runtime plugin paths with forward slashes, so the generated import parses', () => {
+    const o = shellFederationOptions(
+      { name: 'shell', env: {}, runtimePlugins: ['D:\\app\\src\\plugin.ts'] },
+      only('@mfeflow/runtime/plugins/report'),
+      (s) => `C:\\repo\\node_modules\\${s.replaceAll('/', '\\')}.js`,
+    );
+    expect(o.runtimePlugins).toEqual([
+      'C:/repo/node_modules/@mfeflow/runtime/plugins/report.js',
+      'D:/app/src/plugin.ts',
+    ]);
+    expect(toImportPath('\\\\server\\share\\p.js')).toBe('//server/share/p.js');
+    expect(toImportPath('/home/me/p.js')).toBe('/home/me/p.js');
+    expect(toImportPath('@scope/pkg')).toBe('@scope/pkg');
+  });
+
   it('gives the shell eager singletons and no static remotes', () => {
     const o = shellFederationOptions({ name: 'shell', env: {} }, only('react'), (s) => s);
     expect(o.shared).toEqual({ react: { singleton: true, eager: true } });
@@ -98,7 +114,8 @@ describe('createRemoteConfig', () => {
     expect(c.base).toBe('./');
     expect(c.server).toEqual({ port: 4312, strictPort: true, origin: 'http://localhost:4312' });
     expect(c.preview).toEqual({ port: 4312, strictPort: true });
-    expect(c.envPrefix).toEqual(['PUBLIC_', 'VITE_']);
+    // Only PUBLIC_*, as in Rsbuild: a VITE_* variable never reaches the browser bundle.
+    expect(c.envPrefix).toBe('PUBLIC_');
   });
 
   it('leaves the port to Vite when none is given', () => {
@@ -117,18 +134,25 @@ describe('createShellConfig', () => {
     expect(c.server).toEqual({ port: 4300, strictPort: true });
   });
 
-  it('defines the runtime constants, with the snapshot loader dropped only in production builds', () => {
-    const defines = plugin(
-      createShellConfig({ name: 'shell', cwd, env: {} }),
-      'mfeflow:shell-defines',
+  it('defines the runtime constants, and decides production from NODE_ENV as Rsbuild does', () => {
+    const define = (env: Record<string, string>, command: 'build' | 'serve', mode: string) => {
+      const p = plugin(createShellConfig({ name: 'shell', cwd, env }), 'mfeflow:shell-defines');
+      return Reflect.get(Object(callHook(p.config, {}, { command, mode })), 'define') as Record<
+        string,
+        string
+      >;
+    };
+    // Unset NODE_ENV follows Vite: a build is production whatever --mode says, the dev server is not.
+    expect(define({}, 'serve', 'development')['__MFEFLOW_SNAPSHOT__']).toBe('true');
+    expect(define({}, 'build', 'production')['__MFEFLOW_SNAPSHOT__']).toBe('false');
+    expect(define({}, 'build', 'staging')['__MFEFLOW_SNAPSHOT__']).toBe('false');
+    // A NODE_ENV that is set wins over the command.
+    expect(define({ NODE_ENV: 'development' }, 'build', 'production')['__MFEFLOW_SNAPSHOT__']).toBe(
+      'true',
     );
-    const dev = callHook(defines.config, {}, { command: 'serve', mode: 'development' });
-    const prod = callHook(defines.config, {}, { command: 'build', mode: 'production' });
-    expect(dev).toMatchObject({ define: { __MFEFLOW_SNAPSHOT__: 'true' } });
-    expect(prod).toMatchObject({ define: { __MFEFLOW_SNAPSHOT__: 'false' } });
-    expect(
-      Reflect.get(Object(Reflect.get(Object(prod), 'define')), '__MFEFLOW_APP_VERSION__'),
-    ).toBe(JSON.stringify(ownVersion()));
+    expect(define({}, 'build', 'production')['__MFEFLOW_APP_VERSION__']).toBe(
+      JSON.stringify(ownVersion()),
+    );
   });
 
   it('checks the async boundary with eager: false', () => {

@@ -34,7 +34,7 @@ Two `@mfeflow/rsbuild` options do not apply here. `consumesRemotes` is accepted 
 
 Each app needs an `index.html` at its root that loads `/src/index.ts`. Merge extra settings with `mergeConfig` from `vite`. `pluginRestartOn(path)` restarts the dev server when a file changes (the shell uses it for the dev registry), and `registerHeadScript` puts an inline script first in the shell's `<head>`.
 
-`PUBLIC_*` and `VITE_*` variables reach the browser through `import.meta.env`.
+Only `PUBLIC_*` variables reach the browser, through `import.meta.env`, as in Rsbuild. `VITE_*` ones do not, so nothing slips past env-t3 and the `env.public-prefix` check.
 
 ## Module Federation sharing
 

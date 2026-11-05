@@ -664,8 +664,18 @@ describe('mfeflow upgrade --bundler', () => {
     );
     const after = JSON.parse(await fs.readFile(pkgFile, 'utf8')) as {
       scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
     };
     expect(after.scripts).toMatchObject({ dev: 'rsbuild dev --open', build: 'vite build' });
+    // cart kept its changed config, so it keeps the Rsbuild packages it needs; catalog's config went, and so did they.
+    expect(after.devDependencies).toHaveProperty('@rsbuild/core');
+    expect(after.devDependencies).toHaveProperty('@mfeflow/rsbuild');
+    expect(after.devDependencies).toHaveProperty('@mfeflow/vite');
+    const catalog = JSON.parse(
+      await fs.readFile(path.join(root, 'apps/catalog/package.json'), 'utf8'),
+    ) as { devDependencies: Record<string, string> };
+    expect(catalog.devDependencies).not.toHaveProperty('@rsbuild/core');
+    expect(catalog.devDependencies).not.toHaveProperty('@mfeflow/rsbuild');
   });
 
   it('refuses a bundler it does not know', async () => {

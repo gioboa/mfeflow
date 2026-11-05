@@ -61,6 +61,15 @@ export function remoteFederationOptions(
   };
 }
 
+/**
+ * A Windows path (`C:\x\y`, `\\server\share`) with forward slashes. `@module-federation/vite` writes
+ * each runtime plugin into `import x from "<path>"` without escaping it, so a backslash would start an
+ * escape sequence there. Every other specifier is returned as it is.
+ */
+export function toImportPath(specifier: string): string {
+  return /^[A-Za-z]:[\\/]|^\\\\/.test(specifier) ? specifier.replaceAll('\\', '/') : specifier;
+}
+
 /** Module Federation options for a shell. Exported for tests and custom setups. */
 export function shellFederationOptions(
   o: ShellOptions,
@@ -68,8 +77,12 @@ export function shellFederationOptions(
   resolvePath: (s: string) => string,
   versionOf?: (s: string) => string | undefined,
 ): FederationOptions {
+  const common = commonShellOptions(o, canResolve, resolvePath, versionOf);
   return {
-    ...commonShellOptions(o, canResolve, resolvePath, versionOf),
+    ...common,
+    ...(common.runtimePlugins === undefined
+      ? {}
+      : { runtimePlugins: common.runtimePlugins.map(toImportPath) }),
     experiments: { provideExternalRuntime: true },
   };
 }
@@ -108,8 +121,8 @@ export function createRemoteConfig(o: RemoteOptions): UserConfig {
     root: cwd,
     // Assets resolve relative to wherever the remote entry was loaded from (versioned CDN paths).
     base: './',
-    // Rsbuild exposes PUBLIC_* to the browser; keep that, and Vite's own prefix.
-    envPrefix: ['PUBLIC_', 'VITE_'],
+    // Only PUBLIC_*, as in Rsbuild: env-t3 and doctor's E120 check promise nothing else reaches the bundle.
+    envPrefix: 'PUBLIC_',
     plugins: [
       react(),
       federationPlugin(remoteFederationOptions(o, resolvableFrom(cwd), installedVersionFrom(cwd))),
@@ -120,15 +133,19 @@ export function createRemoteConfig(o: RemoteOptions): UserConfig {
   };
 }
 
-/** Defines the shell's compile-time constants once Vite knows whether it is building for production. */
+/**
+ * Defines the shell's compile-time constants once Vite knows the command. Production is `NODE_ENV`, as
+ * in the Rsbuild preset; when it is unset it follows Vite's own default, `production` for a build and
+ * `development` for the dev server, whatever `--mode` is.
+ */
 function pluginShellDefines(o: ShellOptions, cwd: string): Plugin {
   return {
     name: 'mfeflow:shell-defines',
-    config(_config, { command, mode }) {
-      const production = command === 'build' && mode === 'production';
+    config(_config, { command }) {
+      const given = o.env ?? process.env;
       const env = {
-        ...(o.env ?? process.env),
-        NODE_ENV: production ? 'production' : 'development',
+        ...given,
+        NODE_ENV: given.NODE_ENV ?? (command === 'build' ? 'production' : 'development'),
       };
       return { define: shellDefines({ ...o, env }, cwd, resolvableFrom(cwd)) };
     },
@@ -145,7 +162,7 @@ export function createShellConfig(o: ShellOptions): UserConfig {
     root: cwd,
     // Client-side routing: unknown paths get index.html.
     appType: 'spa',
-    envPrefix: ['PUBLIC_', 'VITE_'],
+    envPrefix: 'PUBLIC_',
     plugins: [
       react(),
       federationPlugin(shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s))),
